@@ -6,7 +6,9 @@ use std::f64::consts::PI;
 use rand::Rng;
 use time::precise_time_ns;
 use std::env;
+use std::fmt;
 
+#[derive(Copy, Clone, PartialEq)]
 struct Biquad {
     b0: f64,
     b1: f64,
@@ -19,6 +21,19 @@ struct Biquad {
     y1: f64,
     y2: f64,
 }
+
+impl fmt::Debug for Biquad {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(writeln!(f, "Biquad coefficents:"));
+        try!(writeln!(f, "b0={:+.13},", self.b0));
+        try!(writeln!(f, "b1={:+.13},", self.b1));
+        try!(writeln!(f, "b2={:+.13},", self.b2));
+        try!(writeln!(f, "a1={:+.13},", self.a1));
+        try!(write!  (f, "a2={:+.13},", self.a2));
+        Ok(())
+    }
+}
+
 
 fn peak_eq_coefs(fs: f64, f0: f64, q: f64, db_gain: f64) -> Biquad {
     let a = 10.0_f64.powf(db_gain / 40.0);
@@ -33,7 +48,7 @@ fn peak_eq_coefs(fs: f64, f0: f64, q: f64, db_gain: f64) -> Biquad {
     let b2 = (1.0 - alpha * a) / a0;
     let a2 = (1.0 - alpha / a) / a0;
 
-    let bq = Biquad {
+    Biquad {
         b0: b0,
         b1: b1,
         b2: b2,
@@ -43,18 +58,7 @@ fn peak_eq_coefs(fs: f64, f0: f64, q: f64, db_gain: f64) -> Biquad {
         x2: 0.0,
         y1: 0.0,
         y2: 0.0,
-    };
-
-    return bq;
-}
-
-fn print_biquad(bq: &Biquad) {
-    println!("Biquad coefficients:");
-    println!("b0={},", bq.b0);
-    println!("b1={},", bq.b1);
-    println!("b2={},", bq.b2);
-    println!("a1={},", bq.a1);
-    println!("a2={},", bq.a2);
+    }
 }
 
 fn white_noise(length: usize) -> Vec<f64> {
@@ -184,21 +188,16 @@ fn iir_slice_unsafe(input: &[f64], output: &mut [f64], bq: &mut Biquad) {
 fn main() {
     println!("DSP bench rust");
 
-    let mut buffer_length = 4096;
-    if let Some(arg1) = env::args().nth(1) {
-        buffer_length = arg1.parse::<usize>().unwrap();
-        println!("Buffer length is {}", buffer_length);
-    }
+    let buffer_length = env::args().nth(1).and_then(|arg| arg.parse::<usize>().ok()).unwrap_or(4096);
 
 
     let bench_loops = 200000;
 
     let mut bq = peak_eq_coefs(48000.0, 200.0, 2.0, 6.0);
-    print_biquad(&bq);
+    println!("{:?}", bq);
 
     let input = white_noise(buffer_length);
-    let mut output: Vec<f64> = Vec::new();
-    output.resize(input.len(), 0.0);
+    let mut output: Vec<f64> = vec![0.0; input.len()];
 
     {
         let start = precise_time_ns();
